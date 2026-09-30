@@ -8,6 +8,8 @@ from typing import Any
 
 from app.seed import SEED_ROWS
 
+POINTS_TABLE = "dust_points"
+
 
 class Store:
     def __init__(self) -> None:
@@ -21,6 +23,15 @@ class Store:
     def rows(self, module: str) -> list[dict[str, Any]]:
         return self._tables.setdefault(module, [])
 
+    def ensure_dust_tables(self) -> None:
+        """懒加载扬尘工作流数据，避免 store 与业务服务在模块导入期形成循环依赖。"""
+        if POINTS_TABLE in self._tables:
+            return
+        from app.services.dust import dust_service, ensure_dust_tables
+
+        ensure_dust_tables()
+        dust_service.list_points()
+
     def find(self, module: str, entry_id: int) -> dict[str, Any] | None:
         for row in self.rows(module):
             if int(row.get("id", 0)) == entry_id:
@@ -28,11 +39,20 @@ class Store:
         return None
 
     def overview(self) -> dict[str, object]:
+        self.ensure_dust_tables()
         modules: list[dict[str, object]] = []
+        # 扬尘的台账、批次和待核行属于内部工作流数据；全局总览只汇总点位卡片。
+        overview_tables = {
+            name for name in self._tables
+            if not name.startswith("dust_") or name == "dust_points"
+        }
         for name in self.module_names():
+            if name not in overview_tables:
+                continue
             rows = self.rows(name)
+            display_name = "扬尘监测" if name == "dust_points" else name
             modules.append({
-                "name": name,
+                "name": display_name,
                 "created": len(rows),
                 "pending": sum(1 for row in rows if row.get("pending")),
                 "abnormal": sum(1 for row in rows if row.get("abnormal")),

@@ -28,6 +28,15 @@ class EntryPayload(BaseModel):
     remark: str | None = None
 
 
+class DustImportPayload(BaseModel):
+    """扬尘读数导入：支持数组、对象包裹，或 CSV/JSON 文本。"""
+
+    values: Any = Field(default_factory=list)
+    rows: list[dict[str, Any]] | None = None
+    items: list[dict[str, Any]] | None = None
+    remark: str | None = None
+
+
 
 class BerthEntry(BaseModel):
     """泊位明细结构。"""
