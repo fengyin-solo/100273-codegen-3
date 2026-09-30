@@ -268,3 +268,21 @@ class SafetycheckEntry(BaseModel):
     field_5: str | None = None  # 整改措施
     field_6: str | None = None  # 整改期限
     field_7: str | None = None  # 巡检状态
+
+
+class DustReadingRow(BaseModel):
+    """待核表的一行抄表读数。"""
+
+    point_code: str = Field(description="监测点位编号，如 D-01")
+    period: str = Field(description="抄录时段，如 2026-09-30 08:00")
+    pm10: str | None = Field(default=None, description="PM10 读数，留空视为读数空缺")
+    pm25: str | None = Field(default=None, description="PM2.5 读数，留空视为读数空缺")
+    measure: str | None = Field(default=None, description="抑尘措施落实情况")
+    measure_note: str | None = Field(default=None, description="抑尘措施补充备注")
+    recorder: str | None = Field(default=None, description="抄录人")
+
+
+class DustImportPayload(BaseModel):
+    """一次抄表读数导入（可能多行，含重复抄录/重复导入）。"""
+
+    rows: list[DustReadingRow] = Field(default_factory=list)

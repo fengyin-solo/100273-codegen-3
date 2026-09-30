@@ -8,6 +8,9 @@ from typing import Any
 
 from app.seed import SEED_ROWS
 
+# 扬尘监测的内部底表（点位/批次/待核表/台账），不单独作为业务模块出现在总览。
+DUST_TABLES = {"dust_points", "dust_batches", "dust_readings", "dust_ledger"}
+
 
 class Store:
     def __init__(self) -> None:
@@ -16,7 +19,7 @@ class Store:
         }
 
     def module_names(self) -> list[str]:
-        return sorted(self._tables)
+        return sorted(name for name in self._tables if name not in DUST_TABLES)
 
     def rows(self, module: str) -> list[dict[str, Any]]:
         return self._tables.setdefault(module, [])
@@ -37,6 +40,7 @@ class Store:
                 "pending": sum(1 for row in rows if row.get("pending")),
                 "abnormal": sum(1 for row in rows if row.get("abnormal")),
             })
+        modules.append(self._dust_overview())
         cards = [
             {"label": "业务模块", "value": len(modules)},
             {"label": "今日新增", "value": sum(int(item["created"]) for item in modules)},
@@ -44,6 +48,28 @@ class Store:
             {"label": "异常量", "value": sum(int(item["abnormal"]) for item in modules)},
         ]
         return {"cards": cards, "modules": modules}
+
+    def _dust_overview(self) -> dict[str, object]:
+        """扬尘监测卡片：超标条数与点位总览、月报同口径，实时汇总台账。"""
+        ledger = self.rows("dust_ledger")
+        pending_batch_ids = {
+            int(batch["id"])
+            for batch in self.rows("dust_batches")
+            if batch.get("状态") == "待核"
+        }
+        return {
+            "name": "扬尘监测",
+            # 已入账读数条数（月报行数即由此过滤月份而来）
+            "created": len(ledger),
+            # 待处理 = 待核批次里尚未结案（非完全重复忽略）的读数
+            "pending": sum(
+                1
+                for row in self.rows("dust_readings")
+                if int(row.get("批次id", 0)) in pending_batch_ids
+                and row.get("审核状态") != "重复忽略"
+            ),
+            "abnormal": sum(1 for row in ledger if row.get("是否超标")),
+        }
 
 
 store = Store()
